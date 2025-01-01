@@ -10,7 +10,7 @@ def test_request_action_success(test_client):
 
     # Request an action
     response = test_client.post(
-        "/api/v1/actions",
+        "/api/v1/action",
         json={
             "user_id": "test_user_123",
             "timestamp": "2024-01-01T12:00:00Z",
@@ -28,7 +28,7 @@ def test_request_action_user_not_found(test_client):
     Tests requesting an action for a non-existent user.
     """
     response = test_client.post(
-        "/api/v1/actions",
+        "/api/v1/action",
         json={
             "user_id": "non_existent_user",
             "timestamp": "2024-01-01T12:00:00Z",
