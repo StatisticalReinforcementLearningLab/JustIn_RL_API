@@ -21,12 +21,19 @@ class FlatProbRLAlgorithm(RLAlgorithm):
         )  # Use NumPy's RNG for reproducibility
         self.logger.info("Flat Probability RL Algorithm initialized.")
 
-    def get_action(self, user_id: str, state: dict, parameters: dict) -> tuple:
+    def get_action(
+        self, user_id: str, state: dict, parameters: dict, decision_idx: int
+    ) -> tuple[int, float, dict]:
         """
         Generate an action based on the state and user_id.
         """
-        # Flat probability, so we ignore the state and user_id
-        self.logger.info("Getting action for user_id=%s with state=%s", user_id, state)
+        # Flat probability, so we ignore the state, user_id, and decision_idx
+        self.logger.info(
+            "Getting action for user_id=%s with state=%s at decision_idx=%d",
+            user_id,
+            state,
+            decision_idx,
+        )
 
         # Capture the rng state for reproducibility
         rng_state = self.rng.bit_generator.state
@@ -48,14 +55,42 @@ class FlatProbRLAlgorithm(RLAlgorithm):
 
         return action, probability, rng_state
 
-    def update(self, *args, **kwargs):
+    def update(self, old_params: dict, data: dict) -> tuple[bool, dict]:
         """
         This method is used to update the algorithm with collected data.
-        Since this is a fixed algorithm, so update does nothing.
+        For this example, we will either increase or decrease the probability
+        based on the average temperature. If it is less than 30, we increase
+        the probability by 0.01, otherwise we decrease it by 0.01.
         """
-        pass
+        try:
+            # For the flat probability algorithm, there is no update
+            # Get the old parameters
+            probability_of_action = old_params["probability_of_action"]
 
-    def make_state(self, context: dict) -> list:
+            # Get the temperature from the data
+            temperature = data["temperatures"]
+
+            # For this example, we will either increase or decrease the probability
+            # based on the average temperature. If it is less than 30, we increase
+            # the probability by 0.01, otherwise we decrease it by 0.01.
+            if np.mean(temperature) < 30:
+                probability_of_action += 0.01
+            else:
+                probability_of_action -= 0.01
+
+            # Clipping the probability to be within the range [0.2, 0.8]
+            probability_of_action = max(0.2, min(0.8, probability_of_action))
+
+            # Return the new parameters
+            new_params = {"probability_of_action": probability_of_action}
+            return True, new_params
+
+        except Exception as e:
+            # Log the error
+            self.logger.error(f"Error in updating model: {e}")
+            return False, old_params
+
+    def make_state(self, context: dict) -> tuple[bool, list]:
         """
         Create a state representation based on the context.
         """
@@ -64,16 +99,27 @@ class FlatProbRLAlgorithm(RLAlgorithm):
         # But we return the temperature as a placeholder
         # for the template
 
-        state = [context["temperature"]]
-        return state
+        try:
+            state = [context["temperature"]]
+            return True, state
+        except Exception as e:
+            self.logger.error(f"Error in making state: {e}")
+            return False, []
 
     def make_reward(
         self, user_id: str, state: dict, action: int, outcome: dict
-    ) -> float:
+    ) -> tuple[int, float]:
         """
         Create a reward based on the user_id, state, and action.
         """
         # For the flat probability algorithm, there is no reward
-        # But we return 0.0 as a placeholder for the template
+        # But we return the number of clicks as a placeholder
+        # for this template
 
-        return 0.0
+        try:
+            reward = outcome["clicks"]
+            return True, reward
+        except Exception as e:
+            self.logger.error(f"Error in making reward: {e}")
+            return False, None
+

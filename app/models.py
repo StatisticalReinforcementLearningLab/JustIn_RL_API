@@ -41,10 +41,14 @@ class Action(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.String(255), nullable=False)
     state = db.Column(db.JSON, nullable=True)
+    decision_idx = db.Column(db.Integer, nullable=True)
     raw_context = db.Column(db.JSON, nullable=True)
     action = db.Column(db.Integer, nullable=False)
     action_prob = db.Column(db.Float, nullable=False)
     random_state = db.Column(db.JSON, nullable=False)
+    model_parameters_id = db.Column(
+        db.Integer, db.ForeignKey("model_parameters.id"), nullable=False
+    )
     request_timestamp = db.Column(db.DateTime, nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False)
 
@@ -53,9 +57,11 @@ class Action(db.Model):
         user_id: str,
         action: int,
         state: dict,
+        decision_idx: int,
         raw_context: dict,
         action_prob: float,
         random_state: dict,
+        model_parameters_id: int,
         request_timestamp: datetime.datetime,
         timestamp: datetime.datetime = datetime.datetime.now().isoformat(),
     ):
@@ -65,9 +71,11 @@ class Action(db.Model):
         self.user_id = user_id
         self.action = action
         self.state = state
+        self.decision_idx = decision_idx
         self.raw_context = raw_context
         self.action_prob = action_prob
         self.random_state = random_state
+        self.model_parameters_id = model_parameters_id
         self.request_timestamp = request_timestamp
         self.timestamp = timestamp
 
@@ -108,6 +116,7 @@ class ModelParameters(db.Model):
         """
         return f"<ModelParameters probability_of_action={self.probability_of_action}>"
 
+
 class ModelUpdateRequests(db.Model):
     """
     Database table to store model update requests.
@@ -117,8 +126,9 @@ class ModelUpdateRequests(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     update_id = db.Column(db.String(255), nullable=False)
-    status = db.Column(db.String(50), nullable=False, default="processing")
+    status = db.Column(db.String(50), nullable=False)
     callback_url = db.Column(db.String(1024), nullable=False)
+    request_timestamp = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False)
     completed_at = db.Column(db.DateTime, nullable=True)
     error_message = db.Column(db.String(1024), nullable=True)
@@ -127,6 +137,8 @@ class ModelUpdateRequests(db.Model):
         self,
         update_id: str,
         callback_url: str,
+        request_timestamp: datetime.datetime,
+        status: str = "processing",
         created_at: datetime.datetime = datetime.datetime.now().isoformat(),
     ):
         """
@@ -134,8 +146,10 @@ class ModelUpdateRequests(db.Model):
         """
         self.update_id = update_id
         self.callback_url = callback_url
+        self.request_timestamp = request_timestamp
+        self.status = status
         self.created_at = created_at
-    
+
     def __repr__(self):
         """
         Return a string representation of the ModelUpdateRequests object.
@@ -152,10 +166,45 @@ class StudyData(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.String(255), nullable=False)
+    decision_idx = db.Column(db.Integer, nullable=False)
     action = db.Column(db.Integer, nullable=False)
-    context = db.Column(db.JSON, nullable=False)
-    decision_time = db.Column(db.Integer, nullable=False)
-    timestamp = db.Column(db.DateTime, default=db.func.now())
+    action_prob = db.Column(db.Float, nullable=False)
+    state = db.Column(db.ARRAY(db.Float), nullable=False)
+    raw_context = db.Column(db.JSON, nullable=False)
+    outcome = db.Column(db.JSON, nullable=False)
+    reward = db.Column(db.Float, nullable=True)
+    request_timestamp = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
+
+    def __init__(
+        self,
+        user_id: str,
+        decision_idx: int,
+        action: int,
+        action_prob: float,
+        state: list,
+        raw_context: dict,
+        outcome: dict,
+        reward: float,
+        request_timestamp: datetime.datetime,
+        created_at: datetime.datetime = datetime.datetime.now().isoformat(),
+    ):
+        """
+        Initialize the StudyData object.
+        """
+        self.user_id = user_id
+        self.decision_idx = decision_idx
+        self.action = action
+        self.action_prob = action_prob
+        self.state = state
+        self.raw_context = raw_context
+        self.outcome = outcome
+        self.reward = reward
+        self.request_timestamp = request_timestamp
+        self.created_at = created_at
 
     def __repr__(self):
-        return f"<StudyData user_id={self.user_id}, study_data={self.study_data}>"
+        """
+        Return a string representation of the StudyData object.
+        """
+        return f"<StudyData user_id={self.user_id}, raw_context={self.raw_context}, action={self.action}, reward={self.reward}>"

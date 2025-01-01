@@ -66,41 +66,40 @@ def create_app(config_class="config.Config"):
         """
         logger.error("Unhandled Exception: %s", str(e), exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
-    
-    @app.before_first_request
-    def initialize_model_parameters():
-        """
-        Initialize the ModelParameters table with default priors if empty.
-        """
-        if not ModelParameters.query.first():
-            # Load priors from config or pickle file
-            pickle_file = app.config["PRIORS_PICKLE_FILE"]
-            priors = app.config["MODEL_PRIORS"]
-
-            if pickle_file:
-                try:
-                    with open(pickle_file, "rb") as f:
-                        priors = pickle.load(f)
-                    app.logger.info("Loaded priors from pickle file: %s", pickle_file)
-                except Exception as e:
-                    app.logger.error("Failed to load priors from pickle file: %s", str(e))
-                    raise e
-
-            # Initialize the ModelParameters table
-            default_params = ModelParameters(probability_of_action=priors["probability_of_action"])
-            db.session.add(default_params)
-            db.session.commit()
-            app.logger.info("Initialized ModelParameters with priors: %s", priors)
 
     with app.app_context():
         # Create tables for models
         db.create_all()
+        initialize_model_parameters(app)
 
     # Register CLI commands
     register_cli_commands(app)
 
     return app
 
+def initialize_model_parameters(app):
+    """
+    Initialize the ModelParameters table with default priors if empty.
+    """
+    if not ModelParameters.query.first():
+        # Load priors from config or pickle file
+        pickle_file = app.config["PRIORS_PICKLE_FILE"]
+        priors = app.config["MODEL_PRIORS"]
+
+        if pickle_file:
+            try:
+                with open(pickle_file, "rb") as f:
+                    priors = pickle.load(f)
+                app.logger.info("Loaded priors from pickle file: %s", pickle_file)
+            except Exception as e:
+                app.logger.error("Failed to load priors from pickle file: %s", str(e))
+                raise e
+
+        # Initialize the ModelParameters table
+        default_params = ModelParameters(probability_of_action=priors["probability_of_action"])
+        db.session.add(default_params)
+        db.session.commit()
+        app.logger.info("Initialized ModelParameters with priors: %s", priors)
 
 def register_cli_commands(app):
     """

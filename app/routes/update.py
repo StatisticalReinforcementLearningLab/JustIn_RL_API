@@ -1,60 +1,86 @@
 import datetime
 import logging
 import uuid
+import requests
 from threading import Thread
 from flask import Blueprint, current_app, request, jsonify
 from app.models import ModelParameters, StudyData, ModelUpdateRequests
+from app.algorithms.base import RLAlgorithm
 from app.extensions import db
 
 update_blueprint = Blueprint("update", __name__)
 
-def process_update_request(update_id: str, rl_algorithm, callback_url: str):
+
+def process_update_request(
+    app, update_id: str, rl_algorithm: RLAlgorithm, callback_url: str
+):
     """
     Process the update request.
     """
     try:
-        # Get the latest model parameters from the database
-        model_parameters = ModelParameters.query.order_by(
-            ModelParameters.created_at.desc()
-        ).first()
+        with app.app_context():
+            # Get the latest model parameters from the database
+            current_params = ModelParameters.query.order_by(
+                ModelParameters.timestamp.desc()
+            ).first()
 
-        # Get the data required for the update
-        # In this case, it is all the temperature data in the study_data table
-        study_data = StudyData.query.all()
-        temperatures = [data.temperature for data in study_data]
+            # Get the data required for the update
+            # In this case, it is all the temperatures and the
+            # reward values from the study data
+            study_data = StudyData.query.all()
+            temperatures = [data.raw_context["temperature"] for data in study_data]
+            rewards = [data.reward for data in study_data]
 
-        # Update the model parameters
-        rl_algorithm.update_model(temperatures)
+            # Update the model parameters
+            status, new_parameters = rl_algorithm.update(
+                {"probability_of_action": current_params.probability_of_action},
+                {"temperatures": temperatures, "rewards": rewards},
+            )
 
+            if not status:
+                raise Exception("Model update failed.")
 
-        # Get the probability of action
-        probability_of_action = model_parameters.probability_of_action
+            # Add the new model parameters to the database
+            new_model_parameters = ModelParameters(new_parameters["probability_of_action"])
 
-        # Update the model
-        rl_algorithm.update_model(probability_of_action)
+            db.session.add(new_model_parameters)
+            db.session.commit()
 
-        # Update the status of the request
-        model_update_request = ModelUpdateRequests.query.filter_by(update_id=update_id).first()
-        model_update_request.status = "completed"
-        model_update_request.completed_at = datetime.datetime.now().isoformat()
-        db.session.commit()
+            # Update the status of the request
+            model_update_request = ModelUpdateRequests.query.filter_by(
+                update_id=update_id
+            ).first()
+            model_update_request.status = "completed"
+            model_update_request.completed_at = datetime.datetime.now().isoformat()
+            db.session.commit()
 
-        # Log the completion
-        logging.info(f"[Update] Update ID: {update_id} completed.")
+            # Send a callback to the callback URL
+            requests.post(callback_url, json={"status": "completed", "timestamp": datetime.datetime.now().isoformat()})
+
+            # Log the completion
+            logging.info(f"[Update] Update ID: {update_id} completed.")
 
     except Exception as e:
-        # Log the error
-        logging.error(f"[Update] Error: {e}")
+        with app.app_context():
+            # Log the error
+            logging.error(f"[Update] Error: {e}")
 
-        # Update the status of the request
-        model_update_request = ModelUpdateRequests.query.filter_by(update_id=update_id).first()
-        model_update_request.status = "failed"
-        model_update_request.completed_at = datetime.datetime.now().isoformat()
-        model_update_request.error_message = str(e)
-        db.session.commit()
+            # Update the status of the request
+            model_update_request = ModelUpdateRequests.query.filter_by(
+                update_id=update_id
+            ).first()
+            model_update_request.status = "failed"
+            model_update_request.completed_at = datetime.datetime.now().isoformat()
+            model_update_request.error_message = str(e)
+            db.session.commit()
 
-        # Log the completion
-        logging.info(f"[Update] Update ID: {update_id} failed.")
+            # Send a callback to the callback URL
+            requests.post(
+                callback_url, json={"status": "failed", "message": "Model update failed."}
+            )
+
+            # Log the completion
+            logging.info(f"[Update] Update ID: {update_id} failed.")
 
 
 def check_fields(data: dict) -> tuple[bool, str]:
@@ -63,7 +89,7 @@ def check_fields(data: dict) -> tuple[bool, str]:
     """
     if not data or "timestamp" not in data:
         return False, "timestamp is required."
-    
+
     if "callback_url" not in data:
         return False, "callback_url is required."
 
@@ -81,12 +107,11 @@ def update_model():
         # Check if the required fields are present
         fields_present, error_message = check_fields(data)
         if not fields_present:
-            return jsonify({"error": error_message}), 400
-        
+            return jsonify({"status": "failed", "message": error_message}), 400
+
         # Extract the data
         request_timestamp = data["timestamp"]
         callback_url = data["callback_url"]
-        received_timestamp_iso = datetime.datetime.now().isoformat()
 
         # Get the RL algorithm
         rl_algorithm = current_app.rl_algorithm
@@ -96,20 +121,24 @@ def update_model():
         logging.info(f"[Update] Update ID: {update_id}")
 
         # Add the update request to the database
-        model_update_request = ModelUpdateRequests(update_id, callback_url)
+        model_update_request = ModelUpdateRequests(
+            update_id, callback_url, request_timestamp
+        )
         db.session.add(model_update_request)
         db.session.commit()
 
         # Process the update request in a separate thread
+        app = current_app._get_current_object()  # Get the actual app object
         thread = Thread(
             target=process_update_request,
-            args=(update_id, rl_algorithm, callback_url),
+            args=(app, update_id, rl_algorithm, callback_url),
         )
         thread.start()
 
-        return jsonify({"update_id": update_id, "status": "processing"}), 202
+        return jsonify({"status": "processing", "update_id": update_id}), 202
 
     except Exception as e:
         # Log the error
         logging.error(f"[Update] Error: {e}")
+        logging.exception(e)
         return jsonify({"error": "Internal server error."}), 500
