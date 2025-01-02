@@ -5,10 +5,9 @@ from app import create_app, db
 def app():
     """Create and configure a new app instance for each test."""
     app_instance = create_app()
-    app_instance.config.update(
-        TESTING=True,
-        SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",  # Use an in-memory database for tests
-    )
+
+    # Use the testing configuration
+    app_instance.config.from_object("config.TestingConfig")
 
     with app_instance.app_context():
         # Initialize database or other setup here if needed

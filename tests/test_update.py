@@ -107,6 +107,5 @@ def test_update_model_success(client):
     # Verify the callback response
     assert len(callback_responses) == 1
     callback_data = callback_responses[0]
-    print(callback_data)
     assert callback_data["update_id"] == update_id
     assert callback_data["status"] == "completed"

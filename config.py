@@ -27,12 +27,16 @@ class Config:
         "probability_of_action": 0.5,
     }
 
+    # Backup database before processing an update request
+    BACKUP_DATABASE = True
+
 class DevelopmentConfig(Config):
     DEBUG = True
 
 
 class TestingConfig(Config):
     TESTING = True
+    BACKUP_DATABASE = False
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
 
 
