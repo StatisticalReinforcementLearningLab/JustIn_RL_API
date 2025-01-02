@@ -23,6 +23,26 @@ def check_fields(data: dict) -> tuple[bool, str]:
     if "temperature" not in data["context"]:
         return False, "Invalid context. Temperature is required."
 
+    # Check field types
+    if not isinstance(data["user_id"], str):
+        return False, "user_id must be a string."
+
+    if not isinstance(data["timestamp"], str) and not isinstance(
+        data["timestamp"], datetime.datetime
+    ):
+        return False, "timestamp must be a string or datetime object."
+
+    if not isinstance(data["decision_idx"], int):
+        return False, "decision_idx must be an integer."
+
+    if not isinstance(data["context"], dict):
+        return False, "context must be a dictionary."
+
+    if not isinstance(data["context"]["temperature"], float) and not isinstance(
+        data["context"]["temperature"], int
+    ):
+        return False, "temperature must be a float or int."
+
     return True, ""
 
 
@@ -57,7 +77,12 @@ def request_action():
             user_id=user_id, decision_idx=decision_idx
         ).first()
         if study_data:
-            return jsonify({"status": "failed", "message": "Decision index already exists."}), 400
+            return (
+                jsonify(
+                    {"status": "failed", "message": "Decision index already exists."}
+                ),
+                400,
+            )
 
         # Get the RL algorithm
         rl_algorithm = current_app.rl_algorithm
@@ -74,7 +99,10 @@ def request_action():
 
         # Check if the model parameters exist
         if not model_parameters:
-            return jsonify({"status": "failed", "message": "Model parameters not found."}), 404
+            return (
+                jsonify({"status": "failed", "message": "Model parameters not found."}),
+                404,
+            )
 
         # Extract the model parameters, in this case, the probability
         probability = model_parameters.probability_of_action

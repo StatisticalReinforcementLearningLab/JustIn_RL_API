@@ -55,7 +55,10 @@ def process_update_request(
             db.session.commit()
 
             # Send a callback to the callback URL
-            requests.post(callback_url, json={"status": "completed", "timestamp": datetime.datetime.now().isoformat()})
+            requests.post(callback_url, 
+                          json={"status": "completed", 
+                                "update_id": update_id,
+                                "timestamp": datetime.datetime.now().isoformat()})
 
             # Log the completion
             logging.info(f"[Update] Update ID: {update_id} completed.")
@@ -76,7 +79,9 @@ def process_update_request(
 
             # Send a callback to the callback URL
             requests.post(
-                callback_url, json={"status": "failed", "message": "Model update failed."}
+                callback_url, json={"status": "failed", 
+                                    "update_id": update_id,
+                                    "message": "Model update failed."}
             )
 
             # Log the completion

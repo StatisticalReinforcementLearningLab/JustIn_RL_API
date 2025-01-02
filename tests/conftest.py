@@ -1,22 +1,22 @@
 import pytest
 from app import create_app, db
 
-
-@pytest.fixture(scope="module")
-def test_client():
-    """
-    Creates a Flask test client with a temporary SQLite database.
-    """
-    # Configure the app for testing
-    app = create_app()
-    app.config.update(
-        SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",  # In-memory database
+@pytest.fixture
+def app():
+    """Create and configure a new app instance for each test."""
+    app_instance = create_app()
+    app_instance.config.update(
         TESTING=True,
+        SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",  # Use an in-memory database for tests
     )
 
-    # Establish an application context before running tests
-    with app.app_context():
-        db.create_all()  # Create all tables
-        yield app.test_client()  # Return the Flask test client
+    with app_instance.app_context():
+        # Initialize database or other setup here if needed
+        yield app_instance
         db.session.remove()
-        db.drop_all()  # Drop all tables after tests
+        db.drop_all()  # Drop all tables after the test is completed
+
+@pytest.fixture
+def client(app):
+    """A test client for the app."""
+    return app.test_client()

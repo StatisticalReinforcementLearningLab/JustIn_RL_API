@@ -2,6 +2,7 @@ import random
 import numpy as np
 from app.algorithms.base import RLAlgorithm
 from app.logging_config import get_rl_logger
+import time
 
 
 class FlatProbRLAlgorithm(RLAlgorithm):
@@ -63,6 +64,9 @@ class FlatProbRLAlgorithm(RLAlgorithm):
         the probability by 0.01, otherwise we decrease it by 0.01.
         """
         try:
+            # Add sleep to simulate a long-running update
+            time.sleep(5)
+
             # For the flat probability algorithm, there is no update
             # Get the old parameters
             probability_of_action = old_params["probability_of_action"]
