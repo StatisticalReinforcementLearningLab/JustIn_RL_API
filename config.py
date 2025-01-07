@@ -22,7 +22,7 @@ class Config:
 
     # If you don't want to use a pickle file, you can specify the priors directly
     # using the following format. The keys should match the entries in the
-    # ModelParameters table.
+    # ModelParameters table defined in app/routes/models.py.
     MODEL_PRIORS = {
         "probability_of_action": 0.5,
     }
